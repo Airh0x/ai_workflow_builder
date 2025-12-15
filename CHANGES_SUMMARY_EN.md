@@ -3,7 +3,7 @@
 ## Project Information
 
 - **Project Name**: `ai_workflow_builder`
-- **Location**: `/Users/februarysnow/Desktop/ai_workflow_builder`
+- **Location**: `/Users/user/Desktop/ai_workflow_builder`
 - **Original Project**: `shipflow_ai`
 
 ## Implemented Generalization Features

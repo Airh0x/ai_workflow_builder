@@ -1,6 +1,6 @@
 # AI Workflow Builder By AI
 
-汎用AI画像解析・データ処理ワークフロービルダー (AIを活用した既存コードベースの汎用化およびモジュール化の推進)
+汎用AI画像解析・データ処理ワークフロービルダー (AIを活用した既存コードベースの汎用化)
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue.svg)](https://flutter.dev)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)

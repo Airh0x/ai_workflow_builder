@@ -1,0 +1,137 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  # 動的フレームワークリンクを使用（モジュールマップ問題の解決）
+  # 静的リンクを使用してモジュールの問題を回避
+  use_frameworks! :linkage => :static
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    # camera_avfoundationの設定を先に適用（flutter_additional_ios_build_settingsより先）
+    if target.name == 'camera_avfoundation'
+      target.build_configurations.each do |config|
+        # Swift 5モードでコンパイルしてSendabilityチェックを回避
+        config.build_settings['SWIFT_VERSION'] = '5.0'
+        config.build_settings.delete('SWIFT_STRICT_CONCURRENCY')
+        # 非推奨API警告を抑制
+        config.build_settings['GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS'] = 'NO'
+      end
+    end
+    
+    flutter_additional_ios_build_settings(target)
+    
+    # Flutterルートパスを取得
+    generated_xcconfig_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+    flutter_root_path = nil
+    if File.exist?(generated_xcconfig_path)
+      File.foreach(generated_xcconfig_path) do |line|
+        if line.match(/FLUTTER_ROOT\=(.*)/)
+          flutter_root_path = $1.strip
+          break
+        end
+      end
+    end
+    
+    target.build_configurations.each do |config|
+      # デプロイメントターゲットを13.0に設定
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 13.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      end
+      
+      # すべてのターゲットでモジュールを有効化
+      config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+      
+      # 非推奨APIの警告を抑制（サードパーティパッケージのコードのため）
+      config.build_settings['WARNING_CFLAGS'] ||= ['$(inherited)']
+      config.build_settings['WARNING_CFLAGS'] << '-Wno-deprecated-declarations'
+      config.build_settings['WARNING_CFLAGS'] << '-Wno-deprecated'
+      config.build_settings['GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS'] = 'NO'
+      
+      # フレームワークヘッダーの引用方法の警告を抑制
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+      
+      # image_cropper、share_plus、camera_avfoundation用のFlutterヘッダー検索パスを追加
+      if target.name == 'image_cropper' || target.name == 'share_plus' || target.name == 'camera_avfoundation'
+        if flutter_root_path
+          config.build_settings['HEADER_SEARCH_PATHS'] ||= ['$(inherited)']
+          config.build_settings['HEADER_SEARCH_PATHS'] << "\"#{File.join(flutter_root_path, 'bin', 'cache', 'artifacts', 'engine', 'ios')}/Flutter.framework/Headers\""
+          config.build_settings['HEADER_SEARCH_PATHS'] << "\"#{File.join(flutter_root_path, 'bin', 'cache', 'artifacts', 'engine', 'ios-release')}/Flutter.framework/Headers\""
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)']
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] << "\"#{File.join(flutter_root_path, 'bin', 'cache', 'artifacts', 'engine', 'ios')}\""
+          config.build_settings['FRAMEWORK_SEARCH_PATHS'] << "\"#{File.join(flutter_root_path, 'bin', 'cache', 'artifacts', 'engine', 'ios-release')}\""
+        end
+      end
+      
+      # image_cropper用の追加設定
+      if target.name == 'image_cropper'
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        # モジュール検証をスキップ（ヘッダーの問題を回避）
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+      
+      # share_plus用の追加設定
+      if target.name == 'share_plus'
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      end
+      
+      # camera_avfoundation用の非推奨警告を抑制とモジュール設定
+      if target.name == 'camera_avfoundation'
+        config.build_settings['WARNING_CFLAGS'] ||= ['$(inherited)']
+        config.build_settings['WARNING_CFLAGS'] << '-Wno-deprecated-declarations'
+        # Swift 6 Sendabilityエラーを抑制
+        # Swift 5モードでコンパイルしてSendabilityチェックを回避
+        config.build_settings['SWIFT_VERSION'] = '5.0'
+        config.build_settings.delete('SWIFT_STRICT_CONCURRENCY')
+        # SwiftコンパイラフラグでSwift 5モードを強制
+        config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']
+        # Swift 5モードを強制（Sendabilityチェックを回避）
+        existing_flags = config.build_settings['OTHER_SWIFT_FLAGS'] || []
+        unless existing_flags.any? { |flag| flag.include?('-swift-version') }
+          config.build_settings['OTHER_SWIFT_FLAGS'] = existing_flags + ['-swift-version', '5']
+        end
+        # 非推奨API警告を抑制（AVCaptureVideoOrientation）
+        config.build_settings['GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS'] = 'NO'
+        config.build_settings['WARNING_CFLAGS'] ||= ['$(inherited)']
+        config.build_settings['WARNING_CFLAGS'] << '-Wno-deprecated-declarations'
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+      end
+    end
+  end
+end
